@@ -1,6 +1,8 @@
 library(tidyverse)
 library(janitor)
 
+# Read data extracted from "Achievement of Curriculum for Excellence levels: 2021/22"
+# https://www.gov.scot/publications/achievement-curriculum-excellence-cfe-levels-2021-22/
 data = read.csv("simd_numeracy_acel202122.csv", header = TRUE, stringsAsFactors = FALSE)
 
 names(data) = c("stage", "outcome", "simd", "1617", "1718", "1819", "1920", "2021", "2122")
