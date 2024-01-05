@@ -1,11 +1,11 @@
 library(tidyverse)
 library(janitor)
 
-# Read data extracted from "Achievement of Curriculum for Excellence levels: 2021/22"
-# https://www.gov.scot/publications/achievement-curriculum-excellence-cfe-levels-2021-22/
-data = read.csv("simd_numeracy_acel202122.csv", header = TRUE, stringsAsFactors = FALSE)
+# Read data extracted from "Achievement of Curriculum for Excellence levels: 2022/23"
+# https://www.gov.scot/publications/achievement-curriculum-excellence-cfe-levels-2022-23/
+data = read.csv("simd_numeracy_acel202223.csv", header = TRUE, stringsAsFactors = FALSE)
 
-names(data) = c("stage", "outcome", "simd", "1617", "1718", "1819", "1920", "2021", "2122")
+names(data) = c("stage", "outcome", "simd", "1617", "1718", "1819", "1920", "2021", "2122", "2223")
 
 data_clean = data %>% 
   select(-outcome) %>% 
@@ -14,6 +14,7 @@ data_clean = data %>%
          stage = str_remove(stage, " or better"),
          stage = as.factor(stage),
          stage = fct_relevel(stage, "S3 - Fourth level", after = Inf)) %>% 
+  mutate(across(-c("stage", "simd"), as.character)) %>% 
   # deal with the [x] values used to indicate missing data
   mutate(across(-c("stage", "simd"), ~ na_if(. , "[x]") %>% as.numeric)) %>% 
   pivot_longer(cols = -c("stage", "simd"), names_to = "year", values_to = "value") %>% 
@@ -50,16 +51,16 @@ ggsave("SIMD_allyears_allstages.png", width = 10, height = 5)
 
 data_clean %>% 
   filter(str_detect(stage, "P7"),
-         year == "2021/22") %>% 
+         year == "2022/23") %>% 
   ggplot(aes(x = simd, y = value)) +
   geom_bar(stat = "identity", aes(fill = simd)) + 
   scale_fill_brewer("SIMD quintile", type = "seq", palette = "RdYlBu") +
   theme_minimal(base_size = 16) +
   labs(
-    title = "Percentage of P7 pupils attaining Second Level numeracy in 2021/22",
+    title = "Percentage of P7 pupils attaining Second Level numeracy in 2022/23",
     x = "SIMD Quintile (1 = most deprived, 5 = least deprived)",
     y = "Percentage of pupils"
   )
-ggsave("SIMD_2122_P7.png", width = 10, height = 5)
+ggsave("SIMD_2223_P7.png", width = 10, height = 5)
 
            
