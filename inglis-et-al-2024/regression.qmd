@@ -1,0 +1,146 @@
+---
+title: "Inglis et al. (2024)"
+format:
+  html:
+    df-print: kable
+    code-fold: true
+  markdown_github: 
+    df-print: kable
+---
+
+```{r}
+#| warning: false
+library(tidyverse)
+```
+
+
+## Data
+
+```{r}
+ref2021 <- read_csv(here::here("inglis-et-al-2024/REF2021_UnitResults35.csv"), show_col_types = FALSE)
+```
+
+Topics:
+
+```{r}
+topic_names <- ref2021 %>% 
+  select(matches("^T(\\d+)")) %>% 
+  names()
+
+topic_summary <- topic_names %>% 
+  enframe() %>%  
+  select(-name) %>% 
+  separate_wider_delim(value, delim = " - ", names = c("code", "description"))
+
+topic_summary
+```
+
+```{r}
+ref2021_clean <- ref2021 %>%
+  rename_with(.cols = matches("^T(\\d+)"),
+              .fn = ~ str_extract(.x, "^(T(\\d+))")) %>%
+  select(-starts_with("Log2"))
+```
+
+
+Here we reconstruct the transformed columns, where each of the "Tx" columns produces a corresponding "Log2(Tx)_Log2(T3)" column, with the values being $\log_2(Tx/T3)$.
+
+```{r}
+ref2021_Log2T3 <- ref2021_clean %>%
+  mutate(across(
+    matches("^T(\\d+)"),
+    .fns = ~ log2(.x / T3),
+    .names = "Log2({.col})_Log2(T3)"
+  ))
+```
+
+## Regression
+
+```{r}
+ref2021_Log2T3_regression_data <- ref2021_Log2T3 %>% 
+  select(OutputsGPA, starts_with("Log2")) %>% 
+  select(-starts_with("Log2(T3)"))
+
+ref2021_Log2T3_regression <-
+  lm(OutputsGPA ~ ., data = ref2021_Log2T3_regression_data)
+
+summary(ref2021_Log2T3_regression)
+```
+
+This replicates the $R^2$ value of `r summary(ref2021_Log2T3_regression)$r.squared`.
+
+Regression coefficients:
+
+```{r}
+ref2021_Log2T3_regression_coefficients <-
+  ref2021_Log2T3_regression$coefficients %>% 
+  as_tibble(rownames = "predictor") %>% 
+  rename(coefficient = value) %>% 
+  arrange(-coefficient) %>% 
+  mutate(topic = case_when(
+    predictor == "(Intercept)" ~ "Intercept",
+    .default = str_extract(predictor, "Log2\\((T\\d+)\\)", group = 1)
+  )) %>% 
+  left_join(topic_summary, by = c("topic" = "code")) %>% 
+  mutate(description = if_else(topic == "Intercept", "Intercept", description)) %>% 
+  select(topic, description, coefficient)
+
+ref2021_Log2T3_regression_coefficients
+```
+
+This is missing the coefficient for T3. We can reconstruct that as the negative of the sum of the other topic coefficients.
+
+```{r}
+ref2021_Log2T3_regression_coefficients %>% 
+  filter(topic != "Intercept") %>% 
+  summarise(T3 = -sum(coefficient))
+```
+
+(This makes sense, based on equation (7) of Coenders, G., & Pawlowsky-Glahn, V. (2020). On interpretations of tests and effect sizes in regression models with a compositional predictor. _SORT, 44_, 201–220. <https://doi.org/10.2436/20.8080.02.100> )
+
+## Why T3?
+
+Do we get the same results if we use a different topic in the denominator instead of T3?
+
+Let's try T1...
+
+```{r}
+ref2021_Log2T1 <- ref2021_clean %>%
+  mutate(across(
+    matches("^T(\\d+)"),
+    .fns = ~ log2(.x / T1),
+    .names = "Log2({.col})_Log2(T1)"
+  ))
+
+ref2021_Log2T1_regression_data <- ref2021_Log2T1 %>% 
+  select(OutputsGPA, starts_with("Log2")) %>% 
+  select(-starts_with("Log2(T1)"))
+
+ref2021_Log2T1_regression <-
+  lm(OutputsGPA ~ ., data = ref2021_Log2T1_regression_data)
+```
+
+The $R^2$ value is `r summary(ref2021_Log2T1_regression)$r.squared`.
+
+Regression coefficients:
+
+```{r}
+ref2021_Log2T1_regression_coefficients <-
+  ref2021_Log2T1_regression$coefficients %>% 
+  as_tibble(rownames = "predictor") %>% 
+  rename(coefficient = value) %>% 
+  arrange(-coefficient) %>% 
+  mutate(topic = case_when(
+    predictor == "(Intercept)" ~ "Intercept",
+    .default = str_extract(predictor, "Log2\\((T\\d+)\\)", group = 1)
+  )) %>% 
+  left_join(topic_summary, by = c("topic" = "code")) %>% 
+  mutate(description = if_else(topic == "Intercept", "Intercept", description)) %>% 
+  select(topic, description, coefficient)
+
+ref2021_Log2T1_regression_coefficients
+
+ref2021_Log2T1_regression_coefficients %>% 
+  filter(topic != "Intercept") %>% 
+  summarise(T1 = -sum(coefficient))
+```
