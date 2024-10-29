@@ -316,3 +316,48 @@ ref2021_Log2T1_regression_coefficients %>%
 |        T1 |
 |----------:|
 | 0.0465959 |
+
+## Train and test
+
+Here we try to fit the regression model using only 70 of the UoAs; for
+the remaining 13 UoAs, we then compare the predicted output GPA from the
+model with the actual GPA. We do this train/test split 1000 times,
+recording the *R*<sup>2</sup> value each time to get a sort of bootstrap
+estimate for the predictive value of the regression model. (Note that
+the results are sensitive to the size of the training set used, with 70
+being a somewhat arbitrary choice.)
+
+``` r
+set.seed(20241028)
+all_dat <- ref2021_Log2T3_regression_data %>% 
+  mutate(id = row_number())
+train_size <- 70
+
+rsquared_values <- c()
+
+for (i in 1:1000) {
+  train <- all_dat %>% slice_sample(n = train_size)
+  test <- all_dat %>% anti_join(train, by = "id")
+  
+  regression <-
+    lm(OutputsGPA ~ ., data = train %>% select(-id))
+  
+  predictions <- bind_cols(
+    test %>% select(-starts_with("Log2")),
+    predict(regression, newdata = test) %>% as_tibble()
+  ) %>% 
+    rename(predictedGPA = value)
+  
+  rsquared <- cor(predictions$OutputsGPA, predictions$predictedGPA)^2
+  
+  rsquared_values <- c(rsquared_values, rsquared)
+}
+
+tibble(rsquared = rsquared_values) %>% 
+  ggplot(aes(x = rsquared)) +
+  geom_histogram(bins = 30) +
+  geom_boxplot(width = 5, position = position_nudge(y = -5)) +
+  theme_minimal()
+```
+
+![](regression.markdown_github_files/figure-markdown_github/unnamed-chunk-11-1.png)
